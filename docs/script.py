@@ -126,33 +126,49 @@ def find_valid_slots(grade_schedule, teacher_schedule, teacher, grade):
 
 
 def schedule_lessons():
+    def backtrack(grade_schedule, teacher_schedule, requests, index):
+        if index == len(requests):
+            return True
+        
+        req = requests[index]
+        valid_slots = find_valid_slots(grade_schedule, teacher_schedule, req['teacher'], req['grade'])
+        
+        if not valid_slots:
+            return False
+        
+        valid_slots.sort(key=lambda slot: (slot[0], slot[1], slot[2]))
+        
+        for day_load, period, day in valid_slots[:5]:  # Limit to 5 best options to speed up
+            grade_schedule[req['grade']][day][period] = (req['subject'], req['teacher'])
+            teacher_schedule[req['teacher']][day][period] = req['grade']
+            
+            if backtrack(grade_schedule, teacher_schedule, requests, index + 1):
+                return True
+            
+            grade_schedule[req['grade']][day][period] = None
+            del teacher_schedule[req['teacher']][day][period]
+        
+        return False
+
     grade_schedule = build_empty_schedule()
     teacher_schedule = build_teacher_schedule()
     requests = build_requests()
-
-    while requests:
-        options = []
-        for idx, req in enumerate(requests):
-            valid_slots = find_valid_slots(grade_schedule, teacher_schedule, req['teacher'], req['grade'])
-            if not valid_slots:
-                return None
-            options.append((len(valid_slots), req['total'], req['count'], random.random(), idx, valid_slots))
-
-        options.sort()
-        _, _, _, _, chosen_index, valid_slots = options[0]
-        req = requests.pop(chosen_index)
-
-        valid_slots.sort(key=lambda slot: (slot[0], slot[1], slot[2], random.random()))
-        _, period, day = valid_slots[0]
-
-        grade_schedule[req['grade']][day][period] = (req['subject'], req['teacher'])
-        teacher_schedule[req['teacher']][day][period] = req['grade']
-
-    return grade_schedule, teacher_schedule
+    
+    # Sort requests: Joyce first (hardest), then by fewest valid slots (harder first)
+    requests_with_slots = [
+        (req, find_valid_slots(grade_schedule, teacher_schedule, req['teacher'], req['grade']), idx)
+        for idx, req in enumerate(requests)
+    ]
+    requests_with_slots.sort(key=lambda x: (x[0]['teacher'] != 'Joyce', -len(x[1]), -x[0]['count']))
+    sorted_requests = [x[0] for x in requests_with_slots]
+    
+    if backtrack(grade_schedule, teacher_schedule, sorted_requests, 0):
+        return grade_schedule, teacher_schedule
+    return None
 
 
 schedule = None
-for attempt in range(1, 101):
+for attempt in range(1, 11):
     result = schedule_lessons()
     if result is not None:
         schedule = result
