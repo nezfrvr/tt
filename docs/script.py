@@ -1,139 +1,197 @@
 import random
+from collections import defaultdict
 
-grades = ['G4', 'G5', 'G6', 'G7', 'G8']
 days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-teachers = ['Pauline', 'Patience', 'Mumo', 'Steve', 'Josphat', 'Joyce']
-teacher_codes = {'Pauline':1, 'Patience':7, 'Mumo':4, 'Steve':2, 'Josphat':3, 'Joyce':5}
+grades = ['G4', 'G5', 'G6', 'G7', 'G8']
+period_count = {'G4': 8, 'G5': 8, 'G6': 9, 'G7': 9, 'G8': 9}
+teacher_codes = {'Pauline': 1, 'Patience': 7, 'Mumo': 4, 'Steve': 2, 'Josphat': 3, 'Joyce': 5}
 
 allocations = {
-'Pauline': {
-'G4': {'Kiswahili':4, 'CRE':3, 'Nutrition':2},
-'G5': {'Kiswahili':4, 'CRE':3, 'Nutrition':2},
-'G6': {'CRE':3, 'Nutrition':2},
-'G7': {'Nutrition':2},
-'G8': {'Nutrition':2}
-},
-'Patience': {
-'G4': {'Kiswahili':4, 'SStudies':4, 'Math':5},
-'G5': {'SStudies':4},
-'G7': {'Kiswahili':4, 'SStudies':4},
-'G8': {'Kiswahili':4, 'SStudies':4}
-},
-'Mumo': {
-'G4': {'Science':5},
-'G5': {'Science':5},
-'G6': {'Math':5, 'Science':5},
-'G7': {'Math':5, 'Business':2},
-'G8': {'Business':2}
-},
-'Steve': {
-'G4': {'Creative Arts':6},
-'G5': {'Creative Arts':6},
-'G6': {'Creative Arts':6, 'Sstudies':4},
-'G7': {'Creative Arts':6},
-'G8': {'Creative Arts':6}
-},
-'Josphat': {
-'G4': {'Agriculture':2},
-'G5': {'Math':5, 'Agriculture':2},
-'G6': {'Agriculture':2},
-'G7': {'Science':5, 'Pre tech':2, 'Agriculture':2},
-'G8': {'Math':5, 'Science':5, 'Pre tech':2, 'Agriculture':2}
-},
-'Joyce': {
-'G4': {'English':5},
-'G5': {'English':5},
-'G6': {'English':5},
-'G7': {'English':5, 'CRE':4},
-'G8': {'English':5, 'CRE':4}
+    'Pauline': {
+        'G4': {'Kiswahili': 4, 'CRE': 3, 'Nutrition': 2},
+        'G5': {'Kiswahili': 4, 'CRE': 3, 'Nutrition': 2},
+        'G6': {'CRE': 3, 'Nutrition': 2},
+        'G7': {'Nutrition': 2},
+        'G8': {'Nutrition': 2},
+    },
+    'Patience': {
+        'G4': {'Kiswahili': 4, 'SStudies': 4, 'Math': 5},
+        'G5': {'SStudies': 4},
+        'G7': {'Kiswahili': 4, 'SStudies': 4},
+        'G8': {'Kiswahili': 4, 'SStudies': 4},
+    },
+    'Mumo': {
+        'G4': {'Science': 5},
+        'G5': {'Science': 5},
+        'G6': {'Math': 5, 'Science': 5},
+        'G7': {'Math': 5, 'Business': 2},
+        'G8': {'Business': 2},
+    },
+    'Steve': {
+        'G4': {'Creative Arts': 6},
+        'G5': {'Creative Arts': 6},
+        'G6': {'Creative Arts': 6, 'Sstudies': 4},
+        'G7': {'Creative Arts': 6},
+        'G8': {'Creative Arts': 6},
+    },
+    'Josphat': {
+        'G4': {'Agriculture': 2},
+        'G5': {'Math': 5, 'Agriculture': 2},
+        'G6': {'Agriculture': 2},
+        'G7': {'Science': 5, 'Pre tech': 2, 'Agriculture': 2},
+        'G8': {'Math': 5, 'Science': 5, 'Pre tech': 2, 'Agriculture': 2},
+    },
+    'Joyce': {
+        'G4': {'English': 5},
+        'G5': {'English': 5},
+        'G6': {'English': 5},
+        'G7': {'English': 5, 'CRE': 4},
+        'G8': {'English': 5, 'CRE': 4},
+    },
 }
+
+period_times = {
+    1: '08:10-08:50',
+    2: '08:50-09:30',
+    3: '09:30-10:10',
+    4: '10:10-10:50',
+    5: '11:00-11:40',
+    6: '11:40-12:20',
+    7: '12:20-13:00',
+    8: '14:00-14:40',
+    9: '14:40-15:20',
 }
 
-slots = []
-for grade in grades:
-  max_p = 8 if grade in ['G4','G5'] else 9
-  for day in days:
-    for p in range(1, max_p+1):
-      slots.append((day, p, grade))
+grade_schedule = {
+    grade: {day: {p: None for p in range(1, period_count[grade] + 1)} for day in days}
+    for grade in grades
+}
 
-used = set()
-teacher_busy = {t: set() for t in teachers}
-teacher_last_period = {t: {} for t in teachers}
-assignments = {}
+teacher_day_period = {
+    teacher: {day: set() for day in days}
+    for teacher in teacher_codes
+}
 
-for teacher in teachers:
-  for grade, subjects in allocations[teacher].items():
-    for subject, count in subjects.items():
-      for _ in range(count):
-        available = [s for s in slots if s[2] == grade and s not in used and (s[0], s[1]) not in teacher_busy[teacher]]
-        available = [s for s in available if not (s[0] in teacher_last_period[teacher] and abs(s[1] - teacher_last_period[teacher][s[0]]) == 1)]
-        if available:
-          slot = random.choice(available)
-          used.add(slot)
-          teacher_busy[teacher].add((slot[0], slot[1]))
-          teacher_last_period[teacher][slot[0]] = slot[1]
-          assignments[slot] = (subject, teacher_codes[teacher])
-        else:
-          print(f"No available slot for {teacher} {grade} {subject}")
+requests = []
+for teacher, grade_data in allocations.items():
+    total = sum(sum(subjects.values()) for subjects in grade_data.values())
+    for grade, subjects in grade_data.items():
+        for subject, count in subjects.items():
+            requests.extend([{
+                'teacher': teacher,
+                'grade': grade,
+                'subject': subject,
+                'count': count,
+                'total': total,
+            }] * count)
 
-timetable = {day: {grade: {} for grade in grades} for day in days}
-for slot in slots:
-  day, p, grade = slot
-  if slot in assignments:
-    subj, code = assignments[slot]
-    timetable[day][grade][p] = f"{subj} ({code})"
-  else:
-    timetable[day][grade][p] = "Free"
+requests.sort(key=lambda r: (
+    r['teacher'] != 'Joyce',
+    -r['count'],
+    -r['total'],
+    r['grade'],
+    r['subject'],
+))
 
-html = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Beach Academy Timetable</title>
-<style>
-table { border-collapse: collapse; }
-th, td { border: 1px solid black; padding: 5px; }
-</style>
-</head>
-<body>
-<h1>Beach Academy Timetable</h1>
-"""
+assignments = []
+for req in requests:
+    teacher = req['teacher']
+    grade = req['grade']
+    subject = req['subject']
+
+    candidates = []
+    for day in days:
+        for period in range(1, period_count[grade] + 1):
+            if grade_schedule[grade][day][period] is not None:
+                continue
+            if period in teacher_day_period[teacher][day]:
+                continue
+            if (period - 1) in teacher_day_period[teacher][day]:
+                continue
+            if (period + 1) in teacher_day_period[teacher][day]:
+                continue
+
+            teacher_busy_count = sum(1 for d in days if period in teacher_day_period[teacher][d])
+            candidates.append((teacher_busy_count, day, period))
+
+    if not candidates:
+        raise RuntimeError(
+            f'Unable to place {teacher} {grade} {subject}. '
+            'Try relaxing consecutive constraints or review allocations.'
+        )
+
+    candidates.sort()
+    _, day, period = candidates[0]
+    grade_schedule[grade][day][period] = (subject, teacher)
+    teacher_day_period[teacher][day].add(period)
+    assignments.append((teacher, grade, subject, day, period))
+
+html = ['<!DOCTYPE html>', '<html>', '<head>',
+        '<meta charset="utf-8">',
+        '<title>Beach Academy Timetable</title>',
+        '<style>',
+        'body { font-family: Arial, sans-serif; margin: 20px; background: #f5f7fb; color: #1f2937; }',
+        'h1, h2, h3 { margin: 20px 0 10px; }',
+        'table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }',
+        'th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; }',
+        'th { background: #0f172a; color: white; }',
+        '.day-table th { background: #0ea5e9; }',
+        '.teacher-table th { background: #16a34a; }',
+        '.small { font-size: 0.85rem; color: #475569; }',
+        '.subject { font-weight: 700; }',
+        '.code { color: #2563eb; }',
+        '.section { background: white; padding: 16px; border-radius: 10px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08); }',
+        '</style>',
+        '</head>',
+        '<body>',
+        '<div class="section"><h1>Beach Academy Weekly Timetable</h1>',
+        '<p class="small">Period times are shown for orientation. Each teacher code is shown beside the subject.</p>',
+]
 
 for day in days:
-  html += f"<h2>{day}</h2>"
-  html += "<table>"
-  html += "<tr><th>Period</th>"
-  for grade in grades:
-    html += f"<th>{grade}</th>"
-  html += "</tr>"
-  max_p = 9
-  for p in range(1, max_p+1):
-    html += f"<tr><td>{p}</td>"
-    for grade in grades:
-      if p in timetable[day][grade]:
-        html += f"<td>{timetable[day][grade][p]}</td>"
-      else:
-        html += "<td></td>"
-    html += "</tr>"
-  html += "</table>"
+    html.append(f'<div class="section"><h2>{day}</h2><table class="day-table">')
+    html.append('<tr><th>Period</th><th>Time</th>' + ''.join(f'<th>{grade}</th>' for grade in grades) + '</tr>')
+    max_period = max(period_count.values())
+    for period in range(1, max_period + 1):
+        html.append('<tr>')
+        html.append(f'<td>{period}</td>')
+        html.append(f'<td>{period_times.get(period, "")}</td>')
+        for grade in grades:
+            if period <= period_count[grade]:
+                entry = grade_schedule[grade][day][period]
+                if entry:
+                    subject, teacher = entry
+                    code = teacher_codes[teacher]
+                    html.append(f'<td><span class="subject">{subject}</span> <span class="code">({code})</span></td>')
+                else:
+                    html.append('<td>Free</td>')
+            else:
+                html.append('<td style="background:#e2e8f0;">N/A</td>')
+        html.append('</tr>')
+    html.append('</table></div>')
 
-html += """
-<h1>Teachers' Classes</h1>
-"""
+html.append('<div class="section"><h2>Individual teacher timetables</h2>')
+for teacher in sorted(teacher_codes.keys()):
+    html.append(f'<div><h3>{teacher} ({teacher_codes[teacher]})</h3>')
+    html.append('<table class="teacher-table">')
+    html.append('<tr><th>Period</th><th>Time</th>' + ''.join(f'<th>{day}</th>' for day in days) + '</tr>')
+    max_period = max(period_count.values())
+    for period in range(1, max_period + 1):
+        html.append('<tr>')
+        html.append(f'<td>{period}</td>')
+        html.append(f'<td>{period_times.get(period, "")}</td>')
+        for day in days:
+            found = None
+            for grade in grades:
+                if period <= period_count[grade]:
+                    item = grade_schedule[grade][day][period]
+                    if item and item[1] == teacher:
+                        found = f'{grade} - {item[0]} ({teacher_codes[teacher]})'
+                        break
+            html.append(f'<td>{found or ""}</td>')
+        html.append('</tr>')
+    html.append('</table></div>')
+html.append('</div></body></html>')
 
-for teacher in teachers:
-  html += f"<h2>{teacher} ({teacher_codes[teacher]})</h2>"
-  html += "<table>"
-  html += "<tr><th>Day</th><th>Period</th><th>Grade</th><th>Subject</th></tr>"
-  for slot, (subj, code) in assignments.items():
-    if code == teacher_codes[teacher]:
-      day, p, grade = slot
-      html += f"<tr><td>{day}</td><td>{p}</td><td>{grade}</td><td>{subj}</td></tr>"
-  html += "</table>"
-
-html += """
-</body>
-</html>
-"""
-
-print(html)
+with open('docs/index.html', 'w', encoding='utf-8') as f:
+    f.write('\n'.join(html))
