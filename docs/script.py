@@ -1,5 +1,5 @@
 import random
-from collections import defaultdict
+
 
 days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 grades = ['G4', 'G5', 'G6', 'G7', 'G8']
@@ -62,69 +62,108 @@ period_times = {
     9: '14:40-15:20',
 }
 
-grade_schedule = {
-    grade: {day: {p: None for p in range(1, period_count[grade] + 1)} for day in days}
-    for grade in grades
-}
 
-teacher_day_period = {
-    teacher: {day: set() for day in days}
-    for teacher in teacher_codes
-}
+def build_requests():
+    requests = []
+    for teacher, grade_data in allocations.items():
+        total = sum(sum(subjects.values()) for subjects in grade_data.values())
+        for grade, subjects in grade_data.items():
+            for subject, count in subjects.items():
+                for _ in range(count):
+                    requests.append({
+                        'teacher': teacher,
+                        'grade': grade,
+                        'subject': subject,
+                        'count': count,
+                        'total': total,
+                    })
+    requests.sort(key=lambda r: (
+        r['teacher'] != 'Joyce',
+        -r['count'],
+        -r['total'],
+        r['grade'],
+        r['subject'],
+    ))
+    return requests
 
-requests = []
-for teacher, grade_data in allocations.items():
-    total = sum(sum(subjects.values()) for subjects in grade_data.values())
-    for grade, subjects in grade_data.items():
-        for subject, count in subjects.items():
-            requests.extend([{
-                'teacher': teacher,
-                'grade': grade,
-                'subject': subject,
-                'count': count,
-                'total': total,
-            }] * count)
 
-requests.sort(key=lambda r: (
-    r['teacher'] != 'Joyce',
-    -r['count'],
-    -r['total'],
-    r['grade'],
-    r['subject'],
-))
+def build_empty_schedule():
+    return {
+        grade: {day: {p: None for p in range(1, period_count[grade] + 1)} for day in days}
+        for grade in grades
+    }
 
-assignments = []
-for req in requests:
-    teacher = req['teacher']
-    grade = req['grade']
-    subject = req['subject']
 
-    candidates = []
+def build_teacher_schedule():
+    return {
+        teacher: {day: {} for day in days}
+        for teacher in teacher_codes
+    }
+
+
+def can_assign(grade_schedule, teacher_schedule, teacher, grade, day, period):
+    if grade_schedule[grade][day][period] is not None:
+        return False
+    if period in teacher_schedule[teacher][day]:
+        return False
+    previous = teacher_schedule[teacher][day].get(period - 1)
+    if previous is not None and previous != grade:
+        return False
+    next_period = teacher_schedule[teacher][day].get(period + 1)
+    if next_period is not None and next_period != grade:
+        return False
+    return True
+
+
+def find_valid_slots(grade_schedule, teacher_schedule, teacher, grade):
+    slots = []
     for day in days:
         for period in range(1, period_count[grade] + 1):
-            if grade_schedule[grade][day][period] is not None:
-                continue
-            if period in teacher_day_period[teacher][day]:
-                continue
-            if (period - 1) in teacher_day_period[teacher][day]:
-                continue
-            if (period + 1) in teacher_day_period[teacher][day]:
-                continue
+            if can_assign(grade_schedule, teacher_schedule, teacher, grade, day, period):
+                day_load = len(teacher_schedule[teacher][day])
+                slots.append((day_load, period, day))
+    return slots
 
-            teacher_busy_count = sum(1 for d in days if period in teacher_day_period[teacher][d])
-            candidates.append((teacher_busy_count, day, period))
 
-    if not candidates:
-        raise RuntimeError(
-            f'Unable to place {teacher} {grade} {subject}. '
-            'Try relaxing consecutive constraints or review allocations.'
-        )
+def schedule_lessons():
+    grade_schedule = build_empty_schedule()
+    teacher_schedule = build_teacher_schedule()
+    requests = build_requests()
 
-    candidates.sort()
-    _, day, period = candidates[0]
-    grade_schedule[grade][day][period] = (subject, teacher)
-    teacher_day_period[teacher][day].add(period)
-    assignments.append((teacher, grade, subject, day, period))
+    while requests:
+        options = []
+        for idx, req in enumerate(requests):
+            valid_slots = find_valid_slots(grade_schedule, teacher_schedule, req['teacher'], req['grade'])
+            if not valid_slots:
+                return None
+            options.append((len(valid_slots), req['total'], req['count'], random.random(), idx, valid_slots))
+
+        options.sort()
+        _, _, _, _, chosen_index, valid_slots = options[0]
+        req = requests.pop(chosen_index)
+
+        valid_slots.sort(key=lambda slot: (slot[0], slot[1], slot[2], random.random()))
+        _, period, day = valid_slots[0]
+
+        grade_schedule[req['grade']][day][period] = (req['subject'], req['teacher'])
+        teacher_schedule[req['teacher']][day][period] = req['grade']
+
+    return grade_schedule, teacher_schedule
+
+
+schedule = None
+for attempt in range(1, 101):
+    result = schedule_lessons()
+    if result is not None:
+        schedule = result
+        break
+    random.shuffle(days)
+
+if schedule is None:
+    raise RuntimeError('Unable to build a valid timetable after multiple attempts.')
+
+
+grade_schedule, teacher_schedule = schedule
 
 html = ['<!DOCTYPE html>', '<html>', '<head>',
         '<meta charset="utf-8">',
@@ -145,7 +184,7 @@ html = ['<!DOCTYPE html>', '<html>', '<head>',
         '</head>',
         '<body>',
         '<div class="section"><h1>Beach Academy Weekly Timetable</h1>',
-        '<p class="small">Period times are shown for orientation. Each teacher code is shown beside the subject.</p>',
+        '<p class="small">Period times are shown for orientation. Teacher code labels are included beside each subject.</p>',
 ]
 
 for day in days:
@@ -181,14 +220,12 @@ for teacher in sorted(teacher_codes.keys()):
         html.append(f'<td>{period}</td>')
         html.append(f'<td>{period_times.get(period, "")}</td>')
         for day in days:
-            found = None
-            for grade in grades:
-                if period <= period_count[grade]:
-                    item = grade_schedule[grade][day][period]
-                    if item and item[1] == teacher:
-                        found = f'{grade} - {item[0]} ({teacher_codes[teacher]})'
-                        break
-            html.append(f'<td>{found or ""}</td>')
+            subject_text = ''
+            grade = teacher_schedule[teacher][day].get(period)
+            if grade:
+                subject = grade_schedule[grade][day][period][0]
+                subject_text = f'{grade} - {subject} ({teacher_codes[teacher]})'
+            html.append(f'<td>{subject_text}</td>')
         html.append('</tr>')
     html.append('</table></div>')
 html.append('</div></body></html>')
